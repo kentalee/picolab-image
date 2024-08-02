@@ -1,16 +1,16 @@
 name: Build and Push Docker Image
 
 on:
-  push:
-    branches:
-      - main  # Change to your desired branch
-  pull_request:
-    branches:
-      - main  # Change to your desired branch
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Target branch'
+        required: false
+        default: 'main'
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     steps:
     - name: Checkout repository
@@ -24,13 +24,24 @@ jobs:
       with:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
-
-    - name: Build and push Docker image
+    
+    - name: Declare some variables
+      shell: bash
+      run: |
+        sha_short=$(git rev-parse --short $GITHUB_SHA)
+        commit_date=$(git log -1 --format=%cd --date=format:%Y%m%d)
+        echo "REPO_TAG=${commit_date}-${sha_short}" >> "$GITHUB_ENV"
+    
+    - name: Build and push image
       uses: docker/build-push-action@v4
       with:
         context: .
+        pull: true
         push: true
-        tags: ${{ secrets.DOCKER_USERNAME }}/picolab:latest
+        file: Dockerfile
+        tags: ${{ secrets.DOCKER_USERNAME }}/${{ vars.DOCKER_REPO }}:${{ env.REPO_TAG }}
+        build-args: |
+          APT_MIRROR=${{ vars.APT_MIRROR }}
 
     - name: Log out from Docker Hub
       run: docker logout
